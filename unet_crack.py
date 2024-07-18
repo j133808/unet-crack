@@ -66,54 +66,58 @@ def iou (y_true, y_pred):
     
     return tp / (tp+fp+fn)
 
+def mcc (y_true, y_pred):
+    y_true_f = K.flatten(y_true)
+    y_pred_f = K.flatten(y_pred)
+    tp = K.sum(y_true_f * y_pred_f) 
+    # tn = K.sum(y_true_f + y_pred_f) 
+    fp = K.sum(K.clip(K.clip(y_pred_f+y_true_f,0,1)-y_true_f,0,1))
+    fn = K.sum(K.clip(K.clip(y_pred_f+y_true_f,0,1)-y_pred_f,0,1))
+    
+    return (tp*tn - fp*fn) / np.sqrt((tp+fp)*(tp+fn)*(tn+fp)*(tn+fn))
 
 '''
 Models
 '''
-# U-Net-A model
-def unetA(img_rows, img_cols, img_channels):  # 23 trainable layers, use same padding, en lugar de unpadding layers
+def unetA(img_rows, img_cols, img_channels):
     x = Input(shape=(img_rows, img_cols, img_channels))
-    
+
     # Encoder 
     conv1 = Conv2D(64, (3, 3), padding='same', activation='relu')(x)
     conv2 = Conv2D(64, (3, 3), padding='same', activation='relu')(conv1)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv2)
-    #pool1 = AveragePooling2D(pool_size=(2, 2))(conv2)
-    
+
     conv3 = Conv2D(128, (3, 3), padding='same', activation='relu')(pool1)
     conv4 = Conv2D(128, (3, 3), padding='same', activation='relu')(conv3)
     pool2 = MaxPooling2D(pool_size=(2, 2))(conv4)
-    #pool2 = AveragePooling2D(pool_size=(2, 2))(conv4)
-    
+
     conv5 = Conv2D(256, (3, 3), padding='same', activation='relu')(pool2)
     conv6 = Conv2D(256, (3, 3), padding='same', activation='relu')(conv5)
     pool3 = MaxPooling2D(pool_size=(2, 2))(conv6)
-    #pool3 = AveragePooling2D(pool_size=(2, 2))(conv6)
-    
+
     conv7 = Conv2D(512, (3, 3), padding='same', activation='relu')(pool3)
     conv8 = Conv2D(512, (3, 3), padding='same', activation='relu')(conv7)
     pool4 = MaxPooling2D(pool_size=(2, 2))(conv8)
-    #pool4 = AveragePooling2D(pool_size=(2, 2))(conv8)
-    
+
     conv9 = Conv2D(1024, (3, 3), padding='same', activation='relu')(pool4)
     conv10 = Conv2D(1024, (3, 3), padding='same', activation='relu')(conv9)
-    
+
     # Decoder
     convT1 = Conv2D(512, (2, 2), padding='same', activation='relu')(UpSampling2D(size=(2, 2))(conv10))
     merge1 = concatenate([convT1, conv8], axis=3)
     conv11 = Conv2D(512, (3, 3), padding='same', activation='relu')(merge1)
     conv12 = Conv2D(512, (3, 3), padding='same', activation='relu')(conv11)
-    
+
     convT2 = Conv2D(256, (2, 2), padding='same', activation='relu')(UpSampling2D(size=(2, 2))(conv12))
     merge2 = concatenate([convT2, conv6], axis=3)
     conv13 = Conv2D(256, (3, 3), padding='same', activation='relu')(merge2)
     conv14 = Conv2D(256, (3, 3), padding='same', activation='relu')(conv13)
-    
+
     convT3 = Conv2D(128, (2, 2), padding='same', activation='relu')(UpSampling2D(size=(2, 2))(conv14))
     merge3 = concatenate([convT3, conv4], axis=3)
     conv15 = Conv2D(128, (3, 3), padding='same', activation='relu')(merge3)
     conv16 = Conv2D(128, (3, 3), padding='same', activation='relu')(conv15)
-    
+
     convT4 = Conv2D(64, (2, 2), padding='same', activation='relu')(UpSampling2D(size=(2, 2))(conv16))
     merge4 = concatenate([convT4, conv2], axis=3)
     conv17 = Conv2D(64, (3, 3), padding='same', activation='relu')(merge4)
@@ -123,61 +127,97 @@ def unetA(img_rows, img_cols, img_channels):  # 23 trainable layers, use same pa
 
     return Model(inputs=x, outputs=y)
 
-# U-Net-B Model
 def unetB(img_rows, img_cols, img_channels):
     x = Input(shape=(img_rows, img_cols, img_channels))
-    
+
+    # Encoder 
     conv1 = Conv2D(64, (3, 3), padding='same', activation='relu')(x)
     conv2 = Conv2D(64, (3, 3), padding='same', activation='relu')(conv1)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv2)
-    
+
     conv3 = Conv2D(128, (3, 3), padding='same', activation='relu')(pool1)
     conv4 = Conv2D(128, (3, 3), padding='same', activation='relu')(conv3)
     pool2 = MaxPooling2D(pool_size=(2, 2))(conv4)
-    
+
     conv5 = Conv2D(256, (3, 3), padding='same', activation='relu')(pool2)
     conv6 = Conv2D(256, (3, 3), padding='same', activation='relu')(conv5)
-    
-    
+
+    # Decoder  
     convT3 = Conv2D(128, (2, 2), padding='same', activation='relu')(UpSampling2D(size=(2, 2))(conv6))
     merge3 = concatenate([convT3, conv4], axis=3)
     conv15 = Conv2D(128, (3, 3), padding='same', activation='relu')(merge3)
     conv16 = Conv2D(128, (3, 3), padding='same', activation='relu')(conv15)
-    
+
     convT4 = Conv2D(64, (2, 2), padding='same', activation='relu')(UpSampling2D(size=(2, 2))(conv16))
     merge4 = concatenate([convT4, conv2], axis=3)
     conv17 = Conv2D(64, (3, 3), padding='same', activation='relu')(merge4)
     conv18 = Conv2D(64, (3, 3), padding='same', activation='relu')(conv17)
-    
-    
+
+    # Segmentation
     y = Conv2D(2, (1, 1), activation='softmax')(conv18)
 
     return Model(inputs=x, outputs=y)
-        
-    
-# U-Net-C model
+
 def unetC(img_rows, img_cols, img_channels):  #lr = 0.0009
     x = Input(shape=(img_rows, img_cols, img_channels))
-    
+
     # Encoder 
     conv1 = Conv2D(64, (3, 3), padding='same', activation='relu')(x)
     conv2 = Conv2D(64, (1, 1), padding='same', activation='relu')(conv1)
     pool = MaxPooling2D(pool_size=(2, 2))(conv2)
-    
-    
+
     conv3 = Conv2D(128, (3, 3), padding='same', activation='relu')(pool)
     conv4 = Conv2D(128, (1, 1), padding='same', activation='relu')(conv3)
-    
+
     # Decoder   
     convT = Conv2D(64, (2, 2), padding='same', activation='relu')(UpSampling2D(size=(2, 2))(conv4))
     merge = concatenate([convT, conv2], axis=3)
     conv5 = Conv2D(64, (3, 3), padding='same', activation='relu')(merge)
     conv6 = Conv2D(64, (1, 1), padding='same', activation='relu')(conv5)
-    
+
     # Segmentation
     y = Conv2D(2, (1, 1), activation='softmax')(conv6)
 
-    return Model(inputs=x, outputs=y)    
+    return Model(inputs=x, outputs=y)
+
+def unet256(img_rows, img_cols, img_channels):
+    x = Input(shape=(img_rows, img_cols, img_channels))
+
+    # Encoder 
+    conv1 = Conv2D(64, (3, 3), padding='same', activation='relu')(x)
+    conv2 = Conv2D(64, (3, 3), padding='same', activation='relu')(conv1)
+    pool1 = AveragePooling2D(pool_size=(2, 2))(conv2)
+
+    conv3 = Conv2D(128, (3, 3), padding='same', activation='relu')(pool1)
+    conv4 = Conv2D(128, (3, 3), padding='same', activation='relu')(conv3)
+    pool2 = AveragePooling2D(pool_size=(2, 2))(conv4)
+
+    conv5 = Conv2D(256, (3, 3), padding='same', activation='relu')(pool2)
+    conv6 = Conv2D(256, (3, 3), padding='same', activation='relu')(conv5)
+    pool3 = AveragePooling2D(pool_size=(2, 2))(conv6)
+
+    conv7 = Conv2D(512, (3, 3), padding='same', activation='relu')(pool3)
+    conv8 = Conv2D(512, (3, 3), padding='same', activation='relu')(conv7)
+
+    # Decoder
+    convT1 = Conv2D(256, (2, 2), padding='same', activation='relu')(UpSampling2D(size=(2, 2))(conv8))
+    merge1 = concatenate([convT1, conv6], axis=3)
+    conv9 = Conv2D(256, (3, 3), padding='same', activation='relu')(merge1)
+    conv10 = Conv2D(256, (3, 3), padding='same', activation='relu')(conv9)
+
+    convT2 = Conv2D(128, (2, 2), padding='same', activation='relu')(UpSampling2D(size=(2, 2))(conv10))
+    merge2 = concatenate([convT2, conv4], axis=3)
+    conv11 = Conv2D(128, (3, 3), padding='same', activation='relu')(merge2)
+    conv12 = Conv2D(128, (3, 3), padding='same', activation='relu')(conv11)
+
+    convT3 = Conv2D(64, (2, 2), padding='same', activation='relu')(UpSampling2D(size=(2, 2))(conv12))
+    merge3 = concatenate([convT3, conv2], axis=3)
+    conv13 = Conv2D(64, (3, 3), padding='same', activation='relu')(merge3)
+    conv14 = Conv2D(64, (3, 3), padding='same', activation='relu')(conv13)
+
+    y = Conv2D(2, (1, 1), activation='softmax')(conv14)
+
+    return Model(inputs=x, outputs=y)
 
 
 def train(image_shape, data_dir, logs_dir, namefile, batch_size, params):    
@@ -186,7 +226,7 @@ def train(image_shape, data_dir, logs_dir, namefile, batch_size, params):
     test_generator = generator(os.path.join(data_dir, 'test/'), image_shape, batch_size)
 
     model = unetA(image_shape[0],image_shape[1],3)
-    adam = optimizers.Adam(lr=params['lr'], beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01) # lr = 0.0009
+    adam = optimizers.Adam(lr=params["lr"], beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01) # lr = 0.0009
     model.compile(loss='categorical_crossentropy', 
                   optimizer=adam, 
                   metrics=[f1])  # metrics: f1, iou
@@ -202,12 +242,12 @@ def train(image_shape, data_dir, logs_dir, namefile, batch_size, params):
     es_callback = EarlyStopping(monitor='val_loss', patience=3)
     
     h = model.fit_generator(generator = train_generator, 
-                        steps_per_epoch=params['spe'], #200//batch_size
-                        epochs=params['ep'], 
+                        steps_per_epoch=params["spe"],
+                        epochs=params["ep"], 
                         verbose=1, 
                         callbacks=[checkpointer, tb_callback, es_callback], 
                         validation_data=validation_generator, 
-                        validation_steps=params['vs']) #18//batch_size
+                        validation_steps=params["vs"])
 
 def main():    
     image_shape = (512,512)
@@ -217,10 +257,10 @@ def main():
     umodel = 'A'
     isize = image_shape[0]
     lmodel = 'f1'
-    param = {'lr':0.0001, 'ep':30, 'spe':10, 'vs':1, 'bs':5}
-    namefile = f'unet_{umodel}_demo{isize}_2_{lmodel}_lr{params['lr']}_ep{params['ep']}_bs{params['bs']}_spe{params['spe']}_vs{params['lr']}'
+    params = {"lr":0.0001, "ep":30, "spe":10, "vs":1, "bs":5}
+    namefile = namefile = f'unet_{umodel}_demo{isize}_2_{lmodel}_lr{params["lr"]}_ep{params["ep"]}_bs{params["bs"]}_spe{params["spe"]}_vs{params["vs"]}'
 
-    train(image_shape, data_dir, logs_dir, namefile, params['bs'], params=param)
+    train(image_shape, data_dir, logs_dir, namefile, params["bs"], params=param)
 
 if __name__ == "__main__":
     main()
